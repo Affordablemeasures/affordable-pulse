@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASJ Orders v2.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+
+<!-- ============================================================
+     FIREBASE CONFIG — REPLACE THESE 6 VALUES WITH YOUR OWN
+     Firebase Console > Project Settings > Your Apps > Web App
+     ============================================================ -->
+<script type="module">
+  import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey:            "REPLACE_WITH_YOUR_API_KEY",
+    authDomain:        "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+    projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
+    storageBucket:     "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+    messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
+    appId:             "REPLACE_WITH_YOUR_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  window._db     = db;
+  window._fsLib  = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs };
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (typeof window.startApp === 'function') window.startApp();
+  });
+</script>
+
+<style>
+/* ── VERSION BADGE ── */
+.ver{position:fixed;bottom:.75rem;left:.75rem;z-index:50;background:#1A1A1A;color:#AADC32;font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:.2rem .55rem;border-radius:4px;letter-spacing:.06em;opacity:.7;}
+
+/* ── SYNC INDICATOR ── */
+.sync{position:fixed;top:68px;right:1rem;z-index:300;font-size:.7rem;font-weight:600;padding:.28rem .7rem;border-radius:20px;display:flex;align-items:center;gap:5px;transition:all .3s;}
+.sync.ok{background:#ECFDF5;color:#10B981;border:1px solid #A7F3D0;}
+.sync.saving{background:#EFF6FF;color:#3B82F6;border:1px solid #BFDBFE;}
+.sync.err{background:#FEF2F2;color:#EF4444;border:1px solid #FCA5A5;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+/* ── TOKENS ── */
+:root{--lime:#AADC32;--lime-d:#8ABF1E;--lime-bg:#F2FBDF;--char:#1A1A1A;--char2:#2C2C2C;--g7:#555560;--g4:#9A9AA8;--g2:#E2E2E8;--g1:#F3F3F6;--wh:#FFFFFF;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--g1);color:var(--char);font-family:'Inter',sans-serif;font-size:14px;line-height:1.5;}
+
+/* ── HEADER ── */
+.hdr{background:var(--char);border-bottom:3px solid var(--lime);height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;position:sticky;top:0;z-index:100;}
+.hdr-logo{display:flex;align-items:center;gap:10px;}
+.hdr-badge{width:32px;height:32px;background:var(--lime);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.85rem;color:var(--char);}
+.hdr-name{font-family:'Barlow Condensed',sans-serif;font-size:1.35rem;font-weight:800;color:#fff;letter-spacing:.02em;}
+.hdr-sub{font-size:.6rem;color:var(--g4);letter-spacing:.06em;}
+
+/* ── PAGE ── */
+.page{max-width:1380px;margin:0 auto;padding:1.25rem 1.5rem;}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.85rem;margin-bottom:1.25rem;}
+.stat{background:var(--wh);border:1px solid var(--g2);border-radius:8px;padding:.9rem 1.1rem;position:relative;overflow:hidden;}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.stat-all::before{background:var(--g4);}.stat-fab::before{background:var(--lime);}
+.stat-stk::before{background:var(--char);}.stat-sp::before{background:var(--lime);}
+.stat-lbl{font-size:.58rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--g4);margin-bottom:.2rem;}
+.stat-val{font-family:'Barlow Condensed',sans-serif;font-size:1.9rem;font-weight:700;line-height:1;color:var(--char);}
+.stat-val.lime{color:var(--lime-d);}.stat-sub{font-size:.68rem;color:var(--g4);margin-top:.15rem;}
+
+/* ── TOOLBAR ── */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:.65rem;margin-bottom:.9rem;flex-wrap:wrap;}
+.bar-l{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;}
+.tabs{display:flex;background:var(--wh);border:1px solid var(--g2);border-radius:5px;overflow:hidden;}
+.tab{padding:.35rem .8rem;font-size:.74rem;font-weight:500;border:none;background:transparent;color:var(--g4);cursor:pointer;font-family:'Inter',sans-serif;}
+.tab.on{background:var(--char);color:var(--lime);}
+.tab:hover:not(.on){background:var(--g1);}
+.sw{display:flex;align-items:center;gap:5px;background:var(--wh);border:1px solid var(--g2);border-radius:5px;padding:.32rem .65rem;}
+.sw input{border:none;background:transparent;font-family:'Inter',sans-serif;font-size:.76rem;color:var(--char);outline:none;width:160px;}
+.sw input::placeholder{color:var(--g4);}
+select.sf{padding:.35rem .6rem;font-family:'Inter',sans-serif;font-size:.76rem;border:1px solid var(--g2);border-radius:5px;background:var(--wh);color:var(--char);outline:none;}
+.btn-n{display:inline-flex;align-items:center;gap:5px;padding:.38rem .9rem;border:none;border-radius:5px;font-family:'Inter',sans-serif;font-size:.76rem;font-weight:600;cursor:pointer;white-space:nowrap;}
+.bn-l{background:var(--lime);color:var(--char);}.bn-l:hover{background:var(--lime-d);}
+.bn-d{background:var(--char);color:#fff;}.bn-d:hover{background:var(--char2);}
+
+/* ── MAIN TABLE ── */
+.tbl-wrap{background:var(--wh);border:1px solid var(--g2);border-radius:8px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:.6rem .9rem;text-align:left;font-size:.58rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--g4);background:var(--char);white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--g2);}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--lime-bg);}
+tbody td{padding:.65rem .9rem;font-size:.79rem;vertical-align:middle;}
+.pill{display:inline-flex;align-items:center;padding:.16rem .5rem;border-radius:20px;font-size:.63rem;font-weight:700;white-space:nowrap;}
+.pf{background:var(--lime);color:var(--char);}.ps{background:var(--char);color:var(--lime);}.pdft{background:#FFF3CD;color:#7B5800;}
+.badge{display:inline-block;padding:.16rem .5rem;border-radius:4px;font-size:.63rem;font-weight:700;white-space:nowrap;}
+.bp{background:#FFFBEB;color:#F59E0B;}.bo{background:#EFF6FF;color:#3B82F6;}.br{background:#ECFDF5;color:#10B981;}.bcn{background:#FEF2F2;color:#EF4444;}.bdft{background:#FFF3CD;color:#7B5800;}
+.rc{font-family:monospace;font-size:.72rem;color:var(--g7);}
+.sn{font-weight:600;}.dm{font-size:.69rem;color:var(--g4);display:block;margin-top:1px;}
+.mn{font-family:monospace;font-size:.77rem;}
+.el{color:#DC2626;font-weight:600;}.es{color:#D97706;}
+.act{display:flex;gap:4px;}
+.ib{width:25px;height:25px;display:flex;align-items:center;justify-content:center;border:1px solid var(--g2);border-radius:4px;background:transparent;cursor:pointer;font-size:.73rem;color:var(--g4);}
+.ib:hover{background:var(--g1);color:var(--char);border-color:var(--char);}
+.ib.del:hover{background:#FEE2E2;color:#B91C1C;border-color:#FCA5A5;}
+.ib.grn:hover{background:var(--lime-bg);color:var(--lime-d);border-color:var(--lime);}
+.empty{padding:4rem 2rem;text-align:center;color:var(--g4);}
+
+/* ── OVERLAY ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;opacity:0;pointer-events:none;transition:opacity .2s;}
+.ov.show{opacity:1;pointer-events:all;}
+.modal{background:var(--wh);border-radius:8px;border-top:4px solid var(--lime);width:100%;max-width:980px;margin:auto;}
+.modal-sm{max-width:640px;}
+.mh{background:var(--char);border-radius:7px 7px 0 0;padding:.95rem 1.35rem .75rem;display:flex;align-items:center;justify-content:space-between;}
+.mt2{font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;color:#fff;letter-spacing:.03em;}
+.mx{width:27px;height:27px;border:1px solid #555;border-radius:4px;background:transparent;cursor:pointer;color:#888;font-size:.85rem;display:flex;align-items:center;justify-content:center;}
+.mx:hover{background:var(--char2);color:#fff;}
+.mb{padding:1.1rem 1.35rem;}
+.mf{padding:.75rem 1.35rem 1.1rem;border-top:1px solid var(--g2);display:flex;justify-content:flex-end;gap:.45rem;flex-wrap:wrap;}
+
+/* ── FORMS ── */
+.fg{display:flex;flex-direction:column;gap:.26rem;margin-bottom:.7rem;}
+.fg label{font-size:.58rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--g7);}
+.fg input,.fg select{padding:.42rem .62rem;border:1.5px solid var(--g2);border-radius:5px;background:var(--g1);font-family:'Inter',sans-serif;font-size:.79rem;color:var(--char);outline:none;width:100%;}
+.fg input:focus,.fg select:focus{border-color:var(--lime);background:var(--wh);}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem;}
+.full{grid-column:1/-1;}
+
+/* ── ORDERER ── */
+.pr{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.8rem;align-items:end;}
+.obw{display:flex;gap:.38rem;}
+.ob{flex:1;padding:.48rem .28rem;border:2px solid var(--g2);border-radius:5px;background:var(--g1);cursor:pointer;font-family:'Inter',sans-serif;color:var(--g4);display:flex;flex-direction:column;align-items:center;gap:2px;transition:all .15s;}
+.obc{font-family:'Barlow Condensed',sans-serif;font-size:1.35rem;font-weight:800;line-height:1;}
+.obn{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.ob.on{background:var(--lime);border-color:var(--lime-d);color:var(--char);}
+.ob:hover:not(.on){border-color:var(--g4);background:var(--g2);color:var(--char);}
+.rd{background:var(--char);color:var(--lime);font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:700;padding:.48rem .82rem;border-radius:5px;border:2px solid var(--lime);min-height:42px;display:flex;align-items:center;justify-content:center;text-align:center;word-break:break-all;}
+
+/* ── SECTION DIVIDER ── */
+.sdiv{border-top:2px solid var(--lime);padding:.55rem 0 .38rem;margin:.1rem 0 .28rem;display:flex;align-items:center;justify-content:space-between;}
+.sdlbl{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--char);}
+
+/* ── FABRIC LINES ── */
+.flines{display:flex;flex-direction:column;gap:.42rem;margin-bottom:.45rem;}
+.fl{background:var(--g1);border:1.5px solid var(--g2);border-radius:5px;padding:.55rem .72rem;display:flex;flex-direction:column;gap:.38rem;}
+.fl:hover{border-color:var(--lime);}
+.fl-r1{display:grid;grid-template-columns:115px 78px 105px 1fr 1fr;gap:.45rem;align-items:end;}
+.fl-r2a{display:grid;grid-template-columns:130px 130px 1fr 26px;gap:.45rem;align-items:end;}
+.fl-r2b{display:grid;grid-template-columns:100px 130px 130px 1fr 26px;gap:.45rem;align-items:end;}
+.fll{font-size:.56rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--g4);margin-bottom:3px;}
+.fl input,.fl select{padding:.3rem .42rem;font-size:.77rem;border:1.5px solid var(--g2);border-radius:4px;background:var(--wh);font-family:'Inter',sans-serif;color:var(--char);outline:none;width:100%;}
+.fl input:focus,.fl select:focus{border-color:var(--lime);}
+.flrm{width:25px;height:25px;border:1px solid var(--g2);border-radius:4px;background:transparent;cursor:pointer;color:var(--g4);font-size:.73rem;display:flex;align-items:center;justify-content:center;align-self:end;flex-shrink:0;}
+.flrm:hover{background:#FEE2E2;color:#B91C1C;border-color:#FCA5A5;}
+.addl{width:100%;padding:.4rem;border:2px dashed var(--g2);border-radius:5px;background:transparent;font-family:'Inter',sans-serif;font-size:.76rem;font-weight:500;color:var(--g4);cursor:pointer;}
+.addl:hover{border-color:var(--lime);color:var(--lime-d);background:var(--lime-bg);}
+
+/* ── FABRIC AUTOCOMPLETE ── */
+.ac-wrap{position:relative;}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--wh);border:1.5px solid var(--lime);border-top:none;border-radius:0 0 5px 5px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12);}
+.ac-item{padding:.38rem .55rem;font-size:.77rem;cursor:pointer;display:flex;flex-direction:column;gap:1px;}
+.ac-item:hover{background:var(--lime-bg);}
+.ac-name{font-weight:500;color:var(--char);}
+.ac-detail{font-size:.68rem;color:var(--g4);}
+.ac-new{padding:.38rem .55rem;font-size:.75rem;color:var(--lime-d);cursor:pointer;font-weight:600;border-top:1px solid var(--g2);}
+.ac-new:hover{background:var(--lime-bg);}
+
+/* ── DELIVERY ── */
+.dtog{display:flex;gap:.45rem;}
+.db{flex:1;padding:.52rem .65rem;border:2px solid var(--g2);border-radius:5px;background:transparent;font-family:'Inter',sans-serif;font-size:.72rem;font-weight:500;cursor:pointer;color:var(--g7);text-align:left;line-height:1.4;transition:all .15s;}
+.db.on{background:var(--char);border-color:var(--lime);color:#fff;}
+.db.on .da{color:var(--lime);}
+.ds{font-weight:700;display:block;}.da{font-size:.65rem;color:var(--g4);display:block;margin-top:2px;}
+
+/* ── STOCK SEARCH ── */
+.stk-search-wrap{margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem;}
+.stk-search{flex:1;padding:.42rem .65rem;border:1.5px solid var(--g2);border-radius:5px;background:var(--wh);font-family:'Inter',sans-serif;font-size:.79rem;color:var(--char);outline:none;}
+.stk-search:focus{border-color:var(--lime);}
+.stk-clear{padding:.4rem .7rem;border:1px solid var(--g2);border-radius:5px;background:transparent;font-family:'Inter',sans-serif;font-size:.73rem;color:var(--g4);cursor:pointer;white-space:nowrap;}
+.stk-clear:hover{border-color:var(--char);color:var(--char);}
+.stk-match-count{font-size:.71rem;color:var(--g4);}
+
+/* ── STOCK TABLE ── */
+.stbl{width:100%;border-collapse:collapse;font-size:.76rem;}
+.stbl th{font-size:.57rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--char2);padding:.48rem .62rem;text-align:left;}
+.stbl td{padding:.38rem .62rem;border-bottom:1px solid var(--g2);vertical-align:middle;}
+.stbl tr:last-child td{border-bottom:none;}
+.stbl input[type="number"]{width:65px;padding:.26rem .38rem;border:1.5px solid var(--g2);border-radius:4px;font-family:'Inter',sans-serif;font-size:.76rem;background:var(--wh);outline:none;}
+.stbl input[type="number"]:focus{border-color:var(--lime);}
+.cath td{background:var(--char);color:var(--lime);font-size:.58rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.33rem .62rem;}
+.ttr{background:var(--lime-bg);}.ttr td{font-weight:700;border-top:2px solid var(--lime)!important;padding-top:.52rem;}
+.dtag{display:inline-block;font-size:.59rem;font-weight:600;background:var(--lime);color:var(--char);padding:.08rem .33rem;border-radius:3px;margin-top:2px;}
+.hq{background:var(--lime-bg)!important;border-color:var(--lime)!important;}
+.stbl-hidden{display:none;}
+.no-results-row td{text-align:center;color:var(--g4);font-style:italic;padding:1.5rem;}
+
+/* ── MODAL BUTTONS ── */
+.mb2{display:inline-flex;align-items:center;gap:5px;padding:.4rem .95rem;border-radius:5px;font-family:'Inter',sans-serif;font-size:.76rem;font-weight:600;cursor:pointer;border:none;white-space:nowrap;}
+.mg{background:transparent;border:1.5px solid var(--g2);color:var(--char);}.mg:hover{border-color:var(--char);background:var(--g1);}
+.ml2{background:var(--lime);color:var(--char);}.ml2:hover{background:var(--lime-d);}
+.mgm{background:#EA4335;color:#fff;}.mgm:hover{background:#c5382d;}
+.mdr{background:#FFC107;color:var(--char);}.mdr:hover{background:#e0a800;}
+
+/* ── EMAIL ── */
+.eprev{background:var(--g1);border:1.5px solid var(--g2);border-radius:5px;padding:.85rem .95rem;font-size:.78rem;line-height:1.8;white-space:pre-wrap;font-family:'Inter',sans-serif;color:var(--char);max-height:300px;overflow-y:auto;}
+.gnote{font-size:.7rem;color:var(--g4);background:var(--g1);border:1px solid var(--g2);border-radius:4px;padding:.42rem .65rem;margin-bottom:.65rem;}
+
+/* ── PRINT ── */
+@media print{@page{size:A4;margin:18mm;}header,.bar,.stats,.ov,.sync,.ver{display:none!important;}body{background:white;}.tbl-wrap{border:none;}thead th{background:#1A1A1A!important;color:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.act{display:none!important;}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:800px){.stats{grid-template-columns:1fr 1fr;}.r2,.r3{grid-template-columns:1fr;}.pr{grid-template-columns:1fr;}.fl-r1,.fl-r2a,.fl-r2b{grid-template-columns:1fr 1fr;}.bar{flex-direction:column;align-items:stretch;}}
+</style>
+</head>
+<body>
+
+<!-- VERSION BADGE -->
+<div class="ver">ASJ Orders v2.0</div>
+
+<!-- SYNC STATUS -->
+<div class="sync ok" id="syncEl"><div class="sync-dot"></div><span id="syncTx">Live</span></div>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-logo">
+    <div class="hdr-badge">ASJ</div>
+    <div><div class="hdr-name">ASJ Orders</div><div class="hdr-sub">Affordable Curtains &amp; Blinds</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <button onclick="window.print()" style="background:transparent;border:1px solid #444;color:#aaa;border-radius:5px;padding:.28rem .75rem;font-size:.73rem;cursor:pointer;font-family:'Inter',sans-serif;">🖨 Print</button>
+    <div style="font-size:.68rem;color:#9A9AA8;" id="hdrDate"></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="stats" id="statsEl"></div>
+  <div class="bar">
+    <div class="bar-l">
+      <div class="tabs" id="tabsEl">
+        <button class="tab on" data-f="all">All Orders</button>
+        <button class="tab" data-f="fabric">🧵 Fabric</button>
+        <button class="tab" data-f="stock">📦 Stock</button>
+      </div>
+      <div class="sw"><span style="color:#9A9AA8">🔍</span><input type="text" id="srchEl" placeholder="Search…"></div>
+      <select class="sf" id="sfEl">
+        <option value="all">All Statuses</option><option value="draft">Draft</option>
+        <option value="pending">Pending</option><option value="ordered">Ordered</option>
+        <option value="received">Received</option><option value="cancelled">Cancelled</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:.45rem;">
+      <button class="btn-n bn-l" onclick="openFab()">🧵 New Fabric Order</button>
+      <button class="btn-n bn-d" onclick="openStk()">📦 New Stock Order</button>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>Type</th><th>Reference</th><th>By</th><th>Supplier</th>
+        <th>Description</th><th>Lines</th><th>Date</th><th>ETA</th>
+        <th>Cost</th><th>Status</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="tbodyEl"></tbody>
+    </table>
+    <div id="emptyEl" class="empty" style="display:none">
+      <div style="font-size:2.2rem">📋</div>
+      <p style="color:#9A9AA8;margin-top:.5rem">No orders yet. Use the buttons above to get started.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ FABRIC MODAL ══════════ -->
+<div class="ov" id="fabOv">
+  <div class="modal">
+    <div class="mh"><span class="mt2" id="fabTitle">🧵 New Fabric Order</span><button class="mx" onclick="closeFab()">✕</button></div>
+    <div class="mb">
+      <!-- Orderer + Ref -->
+      <div class="pr">
+        <div class="fg" style="margin-bottom:0"><label>Placed by</label>
+          <div class="obw" id="fabOB">
+            <button class="ob on" data-code="SC" onclick="setFO(this)"><span class="obc">SC</span><span class="obn">Stephen</span></button>
+            <button class="ob" data-code="LF" onclick="setFO(this)"><span class="obc">LF</span><span class="obn">Leonie</span></button>
+            <button class="ob" data-code="AF" onclick="setFO(this)"><span class="obc">AF</span><span class="obn">Alistah</span></button>
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:0"><label>Order Reference (auto)</label><div class="rd" id="fabRef">SC-29-03-2026 Shaw</div></div>
+      </div>
+      <!-- Order details -->
+      <div class="r2">
+        <div class="fg"><label>Supplier</label>
+          <select id="fabSup" onchange="uFR()">
+            <option value="Shaw">Shaw of Australia</option>
+            <option value="Texstyle">Texstyle</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="fg"><label>Order Date</label><input type="date" id="fabDate" onchange="uFR()"></div>
+        <div class="fg"><label>ETA</label><input type="date" id="fabEta"></div>
+        <div class="fg"><label>Status</label>
+          <select id="fabStatus">
+            <option value="pending">Pending</option><option value="ordered">Ordered</option>
+            <option value="received">Received</option><option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Notes</label><input type="text" id="fabNotes" placeholder="Special instructions…"></div>
+      </div>
+      <!-- Fabric lines -->
+      <div class="sdiv">
+        <span class="sdlbl">Fabric Lines</span>
+        <button class="mb2 mg" style="padding:.24rem .65rem;font-size:.7rem;" onclick="addFL()">＋ Add Line</button>
+      </div>
+      <div class="flines" id="fabLinesEl"></div>
+      <button class="addl" onclick="addFL()">＋ Add Another Fabric Line</button>
+    </div>
+    <div class="mf">
+      <button class="mb2 mg" onclick="closeFab()">Cancel</button>
+      <button class="mb2 mdr" onclick="saveFabDraft()">💾 Save Draft</button>
+      <button class="mb2 mg" onclick="prevFabEml()">👁 Preview Email</button>
+      <button class="mb2 mgm" onclick="sendFabEml()">✉ Send via Gmail</button>
+      <button class="mb2 ml2" onclick="saveFab()">✅ Save Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ STOCK MODAL ══════════ -->
+<div class="ov" id="stkOv">
+  <div class="modal">
+    <div class="mh"><span class="mt2" id="stkTitle">📦 New Stock Order — Rollease Acmeda</span><button class="mx" onclick="closeStk()">✕</button></div>
+    <div class="mb">
+      <!-- Orderer + Ref -->
+      <div class="pr">
+        <div class="fg" style="margin-bottom:0"><label>Placed by</label>
+          <div class="obw" id="stkOB">
+            <button class="ob on" data-code="SC" onclick="setSO(this)"><span class="obc">SC</span><span class="obn">Stephen</span></button>
+            <button class="ob" data-code="LF" onclick="setSO(this)"><span class="obc">LF</span><span class="obn">Leonie</span></button>
+            <button class="ob" data-code="AF" onclick="setSO(this)"><span class="obc">AF</span><span class="obn">Alistah</span></button>
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:0"><label>Order Reference (auto)</label><div class="rd" id="stkRef">SC-29-03-2026 Acmeda</div></div>
+      </div>
+      <!-- Order details -->
+      <div class="r3">
+        <div class="fg"><label>Order Date</label><input type="date" id="stkDate" onchange="uSR()"></div>
+        <div class="fg"><label>ETA</label><input type="date" id="stkEta"></div>
+        <div class="fg"><label>Status</label>
+          <select id="stkStatus">
+            <option value="pending">Pending</option><option value="ordered">Ordered</option>
+            <option value="received">Received</option><option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="fg"><label>Discount %</label><input type="number" id="stkDisc" placeholder="e.g. 40" min="0" max="100" oninput="rST()"></div>
+        <div class="fg"><label>&nbsp;</label><div style="font-size:.7rem;color:var(--g4);padding:.32rem 0">Net price shown per item</div></div>
+      </div>
+      <!-- Delivery -->
+      <div class="fg" style="margin-bottom:.8rem"><label>Delivery Site</label>
+        <div class="dtog">
+          <button class="db on" id="dKM" onclick="setDel('km')"><span class="ds">📍 Kings Meadows — Factory (Default)</span><span class="da">19 3/34 Innocent Street, Kings Meadows TAS 7249</span></button>
+          <button class="db" id="dMN" onclick="setDel('mn')"><span class="ds">📍 Moonah — Showroom</span><span class="da">3 Birdwood Avenue, Moonah TAS 7009</span></button>
+        </div>
+      </div>
+      <!-- Stock item search -->
+      <div class="sdiv"><span class="sdlbl">Component Items — Enter Quantities to Order</span></div>
+      <div class="stk-search-wrap">
+        <input class="stk-search" type="text" id="stkSrch" placeholder="🔍  Search items by name or code — e.g. 'bracket' or 'RB09'…" oninput="filterStkItems()">
+        <button class="stk-clear" onclick="clearStkSrch()">Clear</button>
+        <span class="stk-match-count" id="stkMatchCount"></span>
+      </div>
+      <table class="stbl" id="stkTbl">
+        <thead><tr><th>Item</th><th>Code</th><th>Unit</th><th>Bx Qty</th><th>List Price</th><th>Order Qty</th><th>Line Total</th></tr></thead>
+        <tbody id="stkBodyEl"></tbody>
+        <tfoot><tr class="ttr">
+          <td colspan="5" style="text-align:right;font-size:.68rem;color:var(--g7)">ORDER TOTAL</td>
+          <td id="tQ" style="font-family:monospace"></td>
+          <td id="tC" style="font-family:monospace"></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="mf">
+      <button class="mb2 mg" onclick="closeStk()">Cancel</button>
+      <button class="mb2 mdr" onclick="saveStkDraft()">💾 Save Draft</button>
+      <button class="mb2 mg" onclick="prevStkEml()">👁 Preview Email</button>
+      <button class="mb2 mgm" onclick="sendStkEml()">✉ Send via Gmail</button>
+      <button class="mb2 ml2" onclick="saveStk()">✅ Save Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ EMAIL MODAL ══════════ -->
+<div class="ov" id="emlOv">
+  <div class="modal modal-sm">
+    <div class="mh"><span class="mt2">✉ Email Preview</span><button class="mx" onclick="closeEml()">✕</button></div>
+    <div class="mb">
+      <div class="gnote">📱 From: <strong>Affordable Curtains &amp; Blinds</strong> &lt;acbleonie@gmail.com&gt; · CC: asjblinds@gmail.com · Appears in Gmail Sent folder.</div>
+      <div class="fg"><label>To</label><input type="text" id="emlTo"></div>
+      <div class="fg"><label>Subject</label><input type="text" id="emlSubj"></div>
+      <div class="fg"><label>Body</label><div class="eprev" id="emlBodyEl"></div></div>
+    </div>
+    <div class="mf">
+      <button class="mb2 mg" onclick="closeEml()">Close</button>
+      <button class="mb2 mg" onclick="cpyEml()">📋 Copy</button>
+      <button class="mb2 mgm" onclick="openGmail()">✉ Open in Gmail</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════════════
+var VERSION  = 'v2.0';
+var FROM     = 'acbleonie@gmail.com';
+var CC       = 'asjblinds@gmail.com';
+var ADDR_KM  = 'Affordable Curtains & Blinds Warehouse 19 3/34 Innocent Street Kings Meadows Tas 7249';
+var ADDR_MN  = 'Affordable Curtains & Blinds 3 Birdwood Avenue Moonah Tas 7009';
+var SUP_EM   = { Shaw:'customerservice@shawaustralia.com.au', Texstyle:'sales@texstyle.com.au', Other:'' };
+var WIDTHS   = ['2m','2.5m','3m','3.2m'];
+var FTYPES   = ['Blockout','Sunfilter','Translucent'];
+var OPEN     = ['3%','5%','10%'];
+
+// Starter fabric library — grows automatically as you order
+// Format: { name, colour, width, fabricType, openness }
+var FABRIC_LIBRARY_KEY = 'asjFabricLibrary_v1';
+
+// ════════════════════════════════════════════════
+// ROLLEASE ACMEDA STOCK ITEMS — Feb 2026 Price List
+// ════════════════════════════════════════════════
+var SI = [
+  {cat:'Small Chain Control S35',name:'Easy-Lock AC MKII Chain Winder & Auto Idler S35',code:'RB08-3501-xxx010',unit:'set',bq:'25|200',list:9.06},
+  {cat:'Small Chain Control S35',name:'Easy-Lock LX Installation Brackets S35 30mm',code:'RB08-8345-xxx030',unit:'set',bq:'25|250',list:2.54},
+  {cat:'Small Chain Control S35',name:'VX/LX Bracket Cover Caps S35 30mm (pair)',code:'RB08-4141-xxx030',unit:'pair',bq:'25|2000',list:0.75},
+  {cat:'Medium Chain RB09 S45',name:'RB09 Winder & Extendable Idler',code:'RB09-4502-xxx000',unit:'set',bq:'25|200',list:12.21},
+  {cat:'Medium Chain RB09 S45',name:'RB09 Winder w/ Guide & Extendable Idler',code:'RB09-4503-xxx000',unit:'set',bq:'25|200',list:12.82},
+  {cat:'Medium Chain RB09 S45',name:'RB09 Geared Winder & Extendable Idler',code:'RB09-1245-xxx000',unit:'set',bq:'25|100',list:14.65},
+  {cat:'Medium Chain RB09 S45',name:'RB09 Geared Winder w/ Guide & Extend Idler',code:'RB09-1246-xxx000',unit:'set',bq:'25|100',list:15.38},
+  {cat:'Medium Chain RB09 S45',name:'Easy-Lock LX Bracket S45 40mm',code:'RB09-0352-xxx040',unit:'set',bq:'25|200',list:2.89},
+  {cat:'Medium Chain RB09 S45',name:'Easy-Lock LX Bracket S45 55mm',code:'RB09-0352-xxx055',unit:'set',bq:'25|200',list:3.48},
+  {cat:'Medium Chain RB09 S45',name:'RB09 Easy-Lock LX Bkts 12/40mm Stainless',code:'RB09-0359-xxx040',unit:'pair',bq:'25|200',list:7.81},
+  {cat:'Medium Chain RB09 S45',name:'S45-S60 Adaptor',code:'RB09-0501-xxx060',unit:'each',bq:'25|200',list:1.30},
+  {cat:'Medium Chain RB09 S45',name:'Medium HD Bracket Adaptor + Screw',code:'RB09-0701-xxx012',unit:'set',bq:'25|200',list:1.05},
+  {cat:'Medium Chain RB08 S40/S45',name:'RB08 MKII Chain Wind. & Extend. Idler S40',code:'RB08-4002-xxx000',unit:'set',bq:'25|200',list:10.75},
+  {cat:'Medium Chain RB08 S40/S45',name:'RB08 MKII Chain Wind. & Extend. Idler S45',code:'RB08-4502-xxx000',unit:'set',bq:'25|200',list:11.06},
+  {cat:'Medium Chain RB08 S40/S45',name:'RB08 MKI Easy-Lock Winder & Auto Idler S40',code:'RB08-3822-xxx000',unit:'set',bq:'25|200',list:9.70},
+  {cat:'Medium Chain RB08 S40/S45',name:'RB08 MKI Easy-Lock Winder & Auto Idler S45',code:'RB08-4322-xxx000',unit:'set',bq:'25|200',list:9.91},
+  {cat:'Medium Chain RB08 S40/S45',name:'Easy-Lock VX Bracket S40/S45 40mm',code:'RB08-8351-xxx040',unit:'pair',bq:'25|200',list:2.83},
+  {cat:'Medium Chain RB08 S40/S45',name:'Easy-Lock AX Bracket S40/S45 40mm',code:'RB08-8314-xxx040',unit:'pair',bq:'25|200',list:2.48},
+  {cat:'Medium Chain RB08 S40/S45',name:'Easy-Lock AX Bracket S40/S45 55mm',code:'RB08-8314-xxx055',unit:'pair',bq:'25|200',list:2.87},
+  {cat:'Medium Chain RB08 S40/S45',name:'Easy-Lock LX Bracket S40/S45 55mm',code:'RB08-8353-xxx055',unit:'pair',bq:'25|200',list:3.48},
+  {cat:'Brackets & Cover Caps',name:'VX/LX Cover Caps S40/45 40mm (pair)',code:'RB08-4151-xxx040',unit:'pair',bq:'25|1000',list:0.88},
+  {cat:'Brackets & Cover Caps',name:'VX/LX Cover Caps S40/45 55mm (pair)',code:'RB08-4151-xxx055',unit:'pair',bq:'25|1000',list:1.03},
+  {cat:'Brackets & Cover Caps',name:'AX Cover Caps S40/45 40mm (pair)',code:'RB08-4141-xxx040',unit:'pair',bq:'25|1500',list:0.82},
+  {cat:'Brackets & Cover Caps',name:'AX Cover Caps S40/45 55mm (pair)',code:'RB08-4141-xxx055',unit:'pair',bq:'25|1000',list:0.95},
+  {cat:'Double Brackets S40/S45',name:'Slim Profile Dbl Bracket Top Front LH (pr)',code:'RB08-8395-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S40/S45',name:'Slim Profile Dbl Bracket Top Front RH (pr)',code:'RB08-8396-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S40/S45',name:'Slim Profile Dbl Bracket Top Back LH (pr)',code:'RB08-8397-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S40/S45',name:'Slim Profile Dbl Bracket Top Back RH (pr)',code:'RB08-8398-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S40/S45',name:'Square-X Double Easy-Lock Bracket S40/S45',code:'RB08-8384-xxx122',unit:'pair',bq:'5|60',list:17.26},
+  {cat:'Double Brackets S40/S45',name:'Slimline-X Double Easy-Lock Bracket S40/S45',code:'RB08-8380-xxx115',unit:'pair',bq:'5|60',list:15.07},
+  {cat:'Double Brackets S40/S45',name:'Slim Profile Double Bracket Cover Set',code:'RB09-8401-xxx000',unit:'pair',bq:'5|40',list:4.38},
+  {cat:'Double Brackets S45 RB09',name:'RB09 Slim Dbl Bracket Top Front LH (pr)',code:'RB09-8395-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S45 RB09',name:'RB09 Slim Dbl Bracket Top Front RH (pr)',code:'RB09-8396-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S45 RB09',name:'RB09 Slim Dbl Bracket Top Back LH (pr)',code:'RB09-8397-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S45 RB09',name:'RB09 Slim Dbl Bracket Top Back RH (pr)',code:'RB09-8398-xxx148',unit:'pair',bq:'5|40',list:17.26},
+  {cat:'Double Brackets S45 RB09',name:'RB09 Square-X Double Easy-Lock Bracket S45',code:'RB09-8384-xxx122',unit:'pair',bq:'5|60',list:17.26},
+  {cat:'Double Brackets S45 RB09',name:'RB09 Slimline-X Double Easy-Lock Bracket S45',code:'RB09-8380-xxx115',unit:'pair',bq:'5|60',list:15.07},
+  {cat:'Spring Booster S40/S45',name:'Stop Spring AC + Auto Idler S40 Junior',code:'RB01-4001-069000',unit:'set',bq:'25|200',list:14.42},
+  {cat:'Spring Booster S40/S45',name:'Stop Spring AC + Auto Idler S40 Standard',code:'RB01-4002-069000',unit:'set',bq:'25|200',list:15.07},
+  {cat:'Spring Booster S40/S45',name:'Stop Spring AC + Auto Idler S45 Junior',code:'RB01-4501-069000',unit:'set',bq:'25|200',list:15.45},
+  {cat:'Spring Booster S40/S45',name:'Stop Spring AC + Auto Idler S45 Standard',code:'RB01-4502-069000',unit:'set',bq:'25|200',list:15.98},
+  {cat:'Spring Booster S40/S45',name:'Easy-Lock LX Spring Install Brkts S40/45 40mm',code:'RB01-8353-069040',unit:'set',bq:'25|200',list:2.89},
+  {cat:'Large Chain RB10 S60',name:'RB10 Chain Winder S60',code:'RB10-6100-xxx001',unit:'each',bq:'5|50',list:21.39},
+  {cat:'Large Chain RB10 S60',name:'RB10 Winder Bracket Kit S60',code:'RB10-6300-xxx001',unit:'kit',bq:'5|50',list:17.13},
+  {cat:'Large Chain RB10 S60',name:'Bracket Cover Cap S60 + screws',code:'RB10-0101-xxx060',unit:'set',bq:'5|500',list:2.18},
+  {cat:'Large Chain RB10 S60',name:'RB10 Bearing Idler/End Plug S60',code:'RB10-6200-xxx001',unit:'each',bq:'5|50',list:18.95},
+  {cat:'Large Chain RB10 S60',name:'RB10 Idler Bracket Kit S60',code:'RB10-6500-xxx001',unit:'kit',bq:'5|50',list:9.47},
+  {cat:'Large Chain RB10 S60',name:'RB10 Tube Adaptor 60STD',code:'RB10-6000-xxx060',unit:'each',bq:'5|200',list:1.92},
+  {cat:'Large Chain RB10 S60',name:'RB10 Tube Adaptor 80HD',code:'RB10-6000-xxx080',unit:'each',bq:'5|100',list:2.56},
+  {cat:'Bottom Rails',name:'Round Aluminium Bottom Rail 22mm x 5.8m',code:'RB91-1203-xxx580',unit:'length',bq:'10|200',list:43.09},
+  {cat:'Bottom Rails',name:'Flat Aluminium Bottom Rail 11x22mm x 4.8m',code:'RB91-1205-xxx480',unit:'length',bq:'10|320',list:42.56},
+  {cat:'Bottom Rails',name:'Oval Aluminium Bottom Rail 15x26mm x 4.8m',code:'RB91-1226-xxx480',unit:'length',bq:'10|200',list:41.65},
+  {cat:'Bottom Rails',name:'D30 Silent Medium Bottom Rail 5.8m',code:'RB91-1232-xxx580',unit:'length',bq:'10|140',list:40.86},
+  {cat:'Bottom Rails',name:'F4115 Flat Heavy Duty Bottom Rail 5.8m',code:'SB06-0201-xxx580',unit:'length',bq:'10|150',list:96.90},
+  {cat:'Bottom Rails',name:'Round Slimline Bottom Rail End Cap',code:'RB91-2104-xxx022',unit:'each',bq:'100|5000',list:0.21},
+  {cat:'Bottom Rails',name:'Flat Bottom Rail End Cap',code:'RB91-2105-xxx001',unit:'each',bq:'100|5000',list:0.20},
+  {cat:'Bottom Rails',name:'Oval Bottom Rail End Cap',code:'RB91-2126-xxx001',unit:'each',bq:'100|5000',list:0.30},
+  {cat:'Bottom Rails',name:'D30 Bottom Rail End Cap (pair)',code:'RB91-2131-xxx002',unit:'pair',bq:'50|2500',list:0.60},
+  {cat:'Bottom Rails',name:'Base Rail Weight Rod 5x7.5mm x 2m',code:'VB05-0301-025200',unit:'length',bq:'20|300',list:5.44},
+  {cat:'Tubes S45',name:'T-Spline Tube S45 Standard No Tape 5.8m',code:'RB93-0444-000580',unit:'length',bq:'10|80',list:68.09},
+  {cat:'Tubes S45',name:'T-Spline Tube S45 Standard w/ Tape 5.8m',code:'RB93-6444-000580',unit:'length',bq:'10|80',list:78.57},
+  {cat:'Tubes S45',name:'T-Spline Tube S45 Light No Tape 5.8m',code:'RB93-0443-000580',unit:'length',bq:'10|80',list:51.07},
+  {cat:'Tubes S45',name:'T-Spline Tube S45 Heavy Duty No Tape 5.8m',code:'RB93-0449-000580',unit:'length',bq:'6|54',list:117.85},
+  {cat:'Tubes S40',name:'T-Spline Tube S40 Standard No Tape 5.8m',code:'RB93-0440-000580',unit:'length',bq:'10|100',list:36.27},
+  {cat:'Tubes S35',name:'T-Spline Tube S35 Standard w/ Tape 5.8m',code:'RB93-6333-000580',unit:'length',bq:'10|120',list:42.30},
+  {cat:'Tubes S60',name:'Aluminium Tube S60 Standard No Tape 5.8m',code:'RB91-0260-000580',unit:'length',bq:'4|36',list:153.19},
+  {cat:'Tubes S60',name:'Aluminium Tube S60 Standard w/ Tape 5.8m',code:'RB91-6260-000580',unit:'length',bq:'4|36',list:167.60},
+  {cat:'Chains',name:'Pre Looped Plastic Chain 75cm',code:'VA01-1406-xxx075',unit:'each',bq:'10|500',list:2.04},
+  {cat:'Chains',name:'Pre Looped Plastic Chain 100cm',code:'VA01-1406-xxx100',unit:'each',bq:'10|500',list:2.85},
+  {cat:'Chains',name:'Pre Looped Plastic Chain 125cm',code:'VA01-1406-xxx125',unit:'each',bq:'10|500',list:2.85},
+  {cat:'Chains',name:'Pre Looped Plastic Chain 150cm',code:'VA01-1406-xxx150',unit:'each',bq:'10|500',list:3.21},
+  {cat:'Chains',name:'Pre Looped Plastic Chain 175cm',code:'VA01-1406-xxx175',unit:'each',bq:'10|500',list:3.58},
+  {cat:'Chains',name:'Pre Looped Plastic Chain 200cm',code:'VA01-1406-xxx200',unit:'each',bq:'10|400',list:3.93},
+  {cat:'Chains',name:'Plastic Rotation Chain 150Lm Roll',code:'VA01-1406-xxx000',unit:'roll',bq:'150|1200',list:0.68},
+  {cat:'Chains',name:'Chain Tensioners & Screws Face/Wall Fix',code:'RB91-1321-xxx000',unit:'set',bq:'25|400',list:3.51},
+  {cat:'FRS Valance',name:'FRS100 Valance w/ Screw 4.8m Colours',code:'RB88-1011-xxx480',unit:'length',bq:'8|120',list:84.77},
+  {cat:'FRS Valance',name:'FRS100 Snap Lock Centre Support Bracket',code:'RB88-1051-025100',unit:'each',bq:'25|250',list:4.00},
+  {cat:'FRS Valance',name:'FRS100 Valance End Caps LH & RH (pair)',code:'RB88-1021-xxx100',unit:'pair',bq:'10|100',list:4.60},
+  {cat:'FRS Valance',name:'FRS120 Valance w/ Screw 4.8m Colours',code:'RB88-1211-xxx480',unit:'length',bq:'6|84',list:89.91},
+  {cat:'FRS Valance',name:'FRS120 Snap Lock Centre Support Bracket',code:'RB88-1251-025120',unit:'each',bq:'25|200',list:4.20},
+  {cat:'FRS Valance',name:'FRS120 Valance End Caps LH & RH (pair)',code:'RB88-1221-xxx120',unit:'pair',bq:'4|80',list:8.05},
+  {cat:'Mounting Rail',name:'MKII Mounting Rail Base 50 — 5.8m White',code:'RB88-2051-069580',unit:'length',bq:'10|160',list:65.64},
+  {cat:'Mounting Rail',name:'Slimline Spring Clip Bracket',code:'RB88-2092-069001',unit:'each',bq:'100|1000',list:0.95},
+  {cat:'Spline & Tape',name:'9mm ACM Flat Spline No Tape 100Lm Roll',code:'RB92-0901-001100',unit:'roll',bq:'1|10',list:121.38},
+  {cat:'Spline & Tape',name:'9mm ACM Flat Spline One Side Tape 75Lm',code:'RB92-0902-001075',unit:'roll',bq:'1|10',list:116.48},
+  {cat:'Spline & Tape',name:'9mm ACM Flat Spline Two Sides Tape 75Lm',code:'RB92-0903-001075',unit:'roll',bq:'1|10',list:174.10},
+  {cat:'Spline & Tape',name:'T-Spline Slide-On 18mm 200Lm Roll',code:'RB92-0404-311215',unit:'roll',bq:'1|10',list:133.64},
+  {cat:'Spline & Tape',name:'Multi-Purpose DST 12mm 50Lm Roll',code:'HD31-0401-001012',unit:'roll',bq:'1|36',list:36.61},
+];
+
+// ════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════
+var orders=[], fabEId=null, stkEId=null, fabO='SC', stkO='SC', del='km', fabLines=[], stkQtys={};
+var fabricLibrary = [];   // grows as orders are placed
+
+// ════════════════════════════════════════════════
+// FABRIC LIBRARY — localStorage (device-level cache)
+// Firestore handles order data; library stored locally for speed
+// ════════════════════════════════════════════════
+function loadFabricLibrary() {
+  try {
+    var raw = localStorage.getItem(FABRIC_LIBRARY_KEY);
+    fabricLibrary = raw ? JSON.parse(raw) : [];
+  } catch(e) { fabricLibrary = []; }
+}
+
+function saveFabricLibrary() {
+  try { localStorage.setItem(FABRIC_LIBRARY_KEY, JSON.stringify(fabricLibrary)); } catch(e) {}
+}
+
+function learnFabricLine(line) {
+  if (!line.fabric) return;
+  var key = [line.fabric, line.colour, line.rollWidth, line.fabricType].filter(Boolean).join('|').toLowerCase();
+  var exists = fabricLibrary.some(function(f) { return f.key === key; });
+  if (!exists) {
+    fabricLibrary.unshift({
+      key: key,
+      fabric:     line.fabric,
+      colour:     line.colour     || '',
+      rollWidth:  line.rollWidth  || '3m',
+      fabricType: line.fabricType || '',
+      openness:   line.openness   || '5%'
+    });
+    if (fabricLibrary.length > 200) fabricLibrary = fabricLibrary.slice(0, 200);
+    saveFabricLibrary();
+  }
+}
+
+function learnFromOrder(order) {
+  if (order.type === 'fabric') {
+    (order.lines || []).forEach(learnFabricLine);
+  }
+}
+
+// ════════════════════════════════════════════════
+// AUTOCOMPLETE FOR FABRIC NAME FIELD
+// ════════════════════════════════════════════════
+var acOpen = -1; // which line index has autocomplete open
+
+function showAC(lineIdx, inputEl) {
+  closeAllAC();
+  var term = (inputEl.value || '').toLowerCase().trim();
+  if (!term) return;
+
+  var matches = fabricLibrary.filter(function(f) {
+    return f.fabric.toLowerCase().indexOf(term) !== -1 ||
+           (f.colour && f.colour.toLowerCase().indexOf(term) !== -1);
+  }).slice(0, 8);
+
+  var wrap = inputEl.parentElement;
+  wrap.classList.add('ac-wrap');
+  var existing = wrap.querySelector('.ac-list');
+  if (existing) existing.remove();
+
+  var list = document.createElement('div');
+  list.className = 'ac-list';
+
+  matches.forEach(function(f) {
+    var item = document.createElement('div');
+    item.className = 'ac-item';
+    var detail = [f.colour, f.rollWidth, f.fabricType + (f.fabricType === 'Sunfilter' ? ' ' + f.openness : '')].filter(Boolean).join(' · ');
+    item.innerHTML = '<span class="ac-name">' + f.fabric + '</span><span class="ac-detail">' + detail + '</span>';
+    item.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      applyACSuggestion(lineIdx, f);
+      closeAllAC();
+    });
+    list.appendChild(item);
+  });
+
+  if (list.children.length > 0) {
+    wrap.appendChild(list);
+    acOpen = lineIdx;
+  }
+}
+
+function closeAllAC() {
+  document.querySelectorAll('.ac-list').forEach(function(el) { el.remove(); });
+  acOpen = -1;
+}
+
+function applyACSuggestion(lineIdx, f) {
+  fabLines[lineIdx].fabric     = f.fabric;
+  fabLines[lineIdx].colour     = f.colour;
+  fabLines[lineIdx].rollWidth  = f.rollWidth;
+  fabLines[lineIdx].fabricType = f.fabricType;
+  fabLines[lineIdx].openness   = f.openness;
+  rFL();
+}
+
+// ════════════════════════════════════════════════
+// STOCK ITEM SEARCH / FILTER
+// ════════════════════════════════════════════════
+function filterStkItems() {
+  var term = document.getElementById('stkSrch').value.toLowerCase().trim();
+  var rows  = document.getElementById('stkBodyEl').querySelectorAll('tr');
+  var visibleItems = 0;
+  var lastCatRow   = null;
+  var lastCatHasVisible = false;
+
+  rows.forEach(function(row) {
+    if (row.classList.contains('cath')) {
+      // Category header row — show/hide based on whether next items match
+      if (lastCatRow && !lastCatHasVisible) lastCatRow.classList.add('stbl-hidden');
+      lastCatRow = row;
+      lastCatHasVisible = false;
+      row.classList.remove('stbl-hidden');
+    } else {
+      if (!term) {
+        row.classList.remove('stbl-hidden');
+        lastCatHasVisible = true;
+        visibleItems++;
+      } else {
+        var name = (row.dataset.name || '').toLowerCase();
+        var code = (row.dataset.code || '').toLowerCase();
+        var match = name.indexOf(term) !== -1 || code.indexOf(term) !== -1;
+        row.classList.toggle('stbl-hidden', !match);
+        if (match) { lastCatHasVisible = true; visibleItems++; }
+      }
+    }
+  });
+
+  // Hide last category header if no items matched
+  if (lastCatRow && !lastCatHasVisible) lastCatRow.classList.add('stbl-hidden');
+
+  // Show/hide no-results row
+  var noRes = document.getElementById('stkNoResults');
+  if (noRes) noRes.style.display = visibleItems === 0 ? '' : 'none';
+
+  // Update count badge
+  var countEl = document.getElementById('stkMatchCount');
+  if (term) {
+    countEl.textContent = visibleItems + ' item' + (visibleItems !== 1 ? 's' : '') + ' found';
+  } else {
+    countEl.textContent = '';
+  }
+}
+
+function clearStkSrch() {
+  document.getElementById('stkSrch').value = '';
+  filterStkItems();
+  document.getElementById('stkSrch').focus();
+}
+
+// ════════════════════════════════════════════════
+// FIRESTORE
+// ════════════════════════════════════════════════
+function syncStatus(state, text) {
+  var el=document.getElementById('syncEl'), tx=document.getElementById('syncTx');
+  el.className='sync '+state; tx.textContent=text;
+}
+
+function listenToOrders() {
+  var lib = window._fsLib, db = window._db;
+  var q   = lib.query(lib.collection(db,'orders'), lib.orderBy('orderDate','desc'));
+  lib.onSnapshot(q,
+    function(snap) {
+      orders = [];
+      snap.forEach(function(d){ orders.push(d.data()); });
+      render();
+      syncStatus('ok','Live');
+    },
+    function(err) { console.error(err); syncStatus('err','Offline'); }
+  );
+}
+
+async function fsSave(o) {
+  syncStatus('saving','Saving…');
+  try {
+    var lib=window._fsLib, db=window._db;
+    await lib.setDoc(lib.doc(db,'orders',o.id), o);
+    learnFromOrder(o);
+    syncStatus('ok','Saved ✓');
+    setTimeout(function(){ syncStatus('ok','Live'); }, 2000);
+  } catch(e) {
+    syncStatus('err','Save failed');
+    console.error(e);
+    alert('Save failed — check your internet connection and Firebase config.');
+  }
+}
+
+async function fsDelete(id) {
+  syncStatus('saving','Deleting…');
+  try {
+    var lib=window._fsLib, db=window._db;
+    await lib.deleteDoc(lib.doc(db,'orders',id));
+    syncStatus('ok','Live');
+  } catch(e) {
+    syncStatus('err','Delete failed');
+    console.error(e);
+  }
+}
+
+// ════════════════════════════════════════════════
+// DATE + REF HELPERS
+// ════════════════════════════════════════════════
+function tod(){ return new Date().toISOString().slice(0,10); }
+function d2d(iso){ if(!iso)return'—'; var p=iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function d2r(iso){
+  if(!iso){var n=new Date();return p2(n.getDate())+'-'+p2(n.getMonth()+1)+'-'+n.getFullYear();}
+  var p=iso.split('-'); return p[2]+'-'+p[1]+'-'+p[0];
+}
+function p2(n){ return n<10?'0'+n:''+n; }
+function bRef(code,iso,suf){
+  var base=code+'-'+d2r(iso)+' '+suf;
+  var ex=orders.filter(function(o){
+    if(fabEId&&o.id===fabEId)return false;
+    if(stkEId&&o.id===stkEId)return false;
+    return (o.ref||'').replace(/-[A-Z]$/,'')=== base;
+  });
+  if(!ex.length)return base;
+  return base+'-'+'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.min(ex.length,25)];
+}
+function sShort(v){ return v==='Shaw'?'Shaw':v==='Texstyle'?'Texstyle':v; }
+function sFull(v){  return v==='Shaw'?'Shaw of Australia':v; }
+function esc(s){ return(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function etaC(e,s){
+  if(!e||s==='received'||s==='cancelled')return'';
+  var d=(new Date(e)-new Date())/86400000;
+  return d<0?'el':d<=5?'es':'';
+}
+function etaT(e,s){
+  if(!e)return'—'; var d=d2d(e);
+  if(s==='received'||s==='cancelled')return d;
+  var v=Math.round((new Date(e)-new Date())/86400000);
+  if(v<0)return d+' ⚠ '+Math.abs(v)+'d late';
+  if(v===0)return d+' · Today'; return d;
+}
+
+// ════════════════════════════════════════════════
+// STATS + TABLE RENDER
+// ════════════════════════════════════════════════
+function rStats(){
+  var fab=orders.filter(function(o){return o.type==='fabric';}),
+      stk=orders.filter(function(o){return o.type==='stock';});
+  var act=orders.filter(function(o){return o.status==='pending'||o.status==='ordered';}).length;
+  var sp=orders.reduce(function(s,o){return s+(parseFloat(o.cost)||0);},0);
+  document.getElementById('statsEl').innerHTML=
+    '<div class="stat stat-all"><div class="stat-lbl">Total Orders</div><div class="stat-val">'+orders.length+'</div><div class="stat-sub">'+act+' active</div></div>'+
+    '<div class="stat stat-fab"><div class="stat-lbl">Fabric Orders</div><div class="stat-val lime">'+fab.length+'</div><div class="stat-sub">'+fab.filter(function(o){return o.status==='pending'||o.status==='ordered';}).length+' in progress</div></div>'+
+    '<div class="stat stat-stk"><div class="stat-lbl">Stock Orders</div><div class="stat-val">'+stk.length+'</div><div class="stat-sub">'+stk.filter(function(o){return o.status==='pending'||o.status==='ordered';}).length+' in progress</div></div>'+
+    '<div class="stat stat-sp"><div class="stat-lbl">Total Spend</div><div class="stat-val" style="font-size:1.6rem">$'+sp.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})+'</div><div class="stat-sub">all time</div></div>';
+}
+
+function render(){
+  rStats();
+  var srch=document.getElementById('srchEl').value.toLowerCase(),
+      sf=document.getElementById('sfEl').value,
+      af=document.querySelector('.tab.on').dataset.f;
+  var rows=orders.filter(function(o){
+    if(af!=='all'&&o.type!==af)return false;
+    if(sf!=='all'&&o.status!==sf)return false;
+    if(srch){
+      var h=[o.ref,o.orderer,o.supplier,o.notes,
+             (o.lines||[]).map(function(l){return(l.fabric||'')+(l.colour||'');}).join(' '),
+             (o.stockLines||[]).map(function(l){return l.name||'';}).join(' ')
+            ].join(' ').toLowerCase();
+      if(h.indexOf(srch)===-1)return false;
+    }
+    return true;
+  }).sort(function(a,b){return(b.orderDate||'').localeCompare(a.orderDate||'');});
+
+  var tb=document.getElementById('tbodyEl'), em=document.getElementById('emptyEl');
+  if(!rows.length){tb.innerHTML='';em.style.display='block';return;}
+  em.style.display='none';
+
+  tb.innerHTML=rows.map(function(o){
+    var ec=etaC(o.eta,o.status), et=etaT(o.eta,o.status), desc='—', qty='—', isDft=o.status==='draft';
+    if(o.type==='fabric'){
+      var ls=o.lines||[];
+      if(ls.length){
+        var l0=ls[0];
+        var p=[l0.fabric,l0.colour,l0.rollWidth,l0.openness,l0.fabricType].filter(Boolean).join(' ')+(l0.customer?' ('+l0.customer+')':'');
+        desc=p+(ls.length>1?'<span class="dm">+'+(ls.length-1)+' more</span>':'');
+      }
+      qty=ls.length+' line'+(ls.length!==1?'s':'');
+    } else {
+      var sl=(o.stockLines||[]).filter(function(l){return l.qty>0;});
+      desc=(sl.length?sl[0].name:'—')+(sl.length>1?'<span class="dm">+'+(sl.length-1)+' more</span>':'');
+      qty=sl.reduce(function(s,l){return s+(parseInt(l.qty)||0);},0)+' pcs';
+    }
+    var sc=o.status.charAt(0).toUpperCase()+o.status.slice(1);
+    var bc=isDft?'bdft':o.status==='pending'?'bp':o.status==='ordered'?'bo':o.status==='received'?'br':'bcn';
+    return '<tr>'+
+      '<td><span class="pill '+(isDft?'pdft':o.type==='fabric'?'pf':'ps')+'">'+(isDft?'📝 DRAFT':o.type==='fabric'?'🧵 FABRIC':'📦 STOCK')+'</span></td>'+
+      '<td class="rc">'+(o.ref||'—')+'</td>'+
+      '<td style="font-family:\'Barlow Condensed\',sans-serif;font-size:.95rem;font-weight:700;color:var(--lime-d)">'+(o.orderer||'')+'</td>'+
+      '<td class="sn">'+(o.supplier||'—')+'</td>'+
+      '<td>'+desc+'</td>'+
+      '<td class="mn">'+qty+'</td>'+
+      '<td style="font-size:.74rem;color:var(--g4)">'+d2d(o.orderDate)+'</td>'+
+      '<td class="mn '+ec+'">'+et+'</td>'+
+      '<td class="mn">$'+parseFloat(o.cost||0).toFixed(2)+'</td>'+
+      '<td><span class="badge '+bc+'">'+sc+'</span></td>'+
+      '<td class="act">'+
+        '<button class="ib" title="Edit" onclick="editO(\''+o.id+'\')">✏️</button>'+
+        '<button class="ib" title="Email" onclick="qEmail(\''+o.id+'\')">✉️</button>'+
+        '<button class="ib grn" title="Mark Received" onclick="markR(\''+o.id+'\')">✅</button>'+
+        '<button class="ib del" title="Delete" onclick="delO(\''+o.id+'\')">🗑</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+// ORDERER
+// ════════════════════════════════════════════════
+function setFO(btn){ document.querySelectorAll('#fabOB .ob').forEach(function(b){b.classList.remove('on');}); btn.classList.add('on'); fabO=btn.dataset.code; uFR(); }
+function setSO(btn){ document.querySelectorAll('#stkOB .ob').forEach(function(b){b.classList.remove('on');}); btn.classList.add('on'); stkO=btn.dataset.code; uSR(); }
+function uFR(){ document.getElementById('fabRef').textContent=bRef(fabO,document.getElementById('fabDate').value,sShort(document.getElementById('fabSup').value)); }
+function uSR(){ document.getElementById('stkRef').textContent=bRef(stkO,document.getElementById('stkDate').value,'Acmeda'); }
+function gFR(){ return bRef(fabO,document.getElementById('fabDate').value,sShort(document.getElementById('fabSup').value)); }
+function gSR(){ return bRef(stkO,document.getElementById('stkDate').value,'Acmeda'); }
+
+// ════════════════════════════════════════════════
+// FABRIC MODAL
+// ════════════════════════════════════════════════
+function openFab(id){
+  fabEId=id||null;
+  var o=fabEId?orders.find(function(x){return x.id===fabEId;}):null;
+  document.getElementById('fabTitle').textContent=fabEId?'🧵 Edit Fabric Order':'🧵 New Fabric Order';
+  fabO=o?(o.orderer||'SC'):'SC';
+  document.querySelectorAll('#fabOB .ob').forEach(function(b){b.classList.toggle('on',b.dataset.code===fabO);});
+  document.getElementById('fabSup').value=o?(o.supKey||'Shaw'):'Shaw';
+  document.getElementById('fabDate').value=o?(o.orderDate||tod()):tod();
+  document.getElementById('fabEta').value=o?(o.eta||''):'';
+  document.getElementById('fabStatus').value=o?(o.status==='draft'?'pending':o.status||'pending'):'pending';
+  document.getElementById('fabNotes').value=o?(o.notes||''):'';
+  fabLines=o&&o.lines&&o.lines.length?JSON.parse(JSON.stringify(o.lines)):[{rollCut:'roll',qty:1,fabric:'',colour:'',rollWidth:'3m',openness:'5%',fabricType:'',customer:''}];
+  rFL(); uFR();
+  document.getElementById('fabOv').classList.add('show');
+}
+function closeFab(){ closeAllAC(); document.getElementById('fabOv').classList.remove('show'); }
+
+function rFL(){
+  closeAllAC();
+  document.getElementById('fabLinesEl').innerHTML=fabLines.map(function(l,i){
+    var isR=(l.rollCut||'roll')==='roll', isSF=l.fabricType==='Sunfilter';
+    var wo=WIDTHS.map(function(w){return'<option value="'+w+'"'+(l.rollWidth===w?' selected':'')+'>'+w+'</option>';}).join('');
+    var to='<option value=""'+(!l.fabricType?' selected':'')+'>— Select —</option>'+FTYPES.map(function(t){return'<option value="'+t+'"'+(l.fabricType===t?' selected':'')+'>'+t+'</option>';}).join('');
+    var oo=OPEN.map(function(p){return'<option value="'+p+'"'+(l.openness===p?' selected':'')+'>'+p+'</option>';}).join('');
+    return '<div class="fl" id="fl_'+i+'">'+
+      '<div class="fl-r1">'+
+        '<div><div class="fll">Roll / Cut</div><select onchange="flS('+i+',\'rollCut\',this.value)"><option value="roll"'+(isR?' selected':'')+'>Full Roll (20mt)</option><option value="cut"'+(!isR?' selected':'')+'>Cut Length</option></select></div>'+
+        '<div><div class="fll">'+(isR?'No. Rolls':'Length mt')+'</div><input type="number" value="'+(l.qty||'')+'" min="'+(isR?'1':'0.5')+'" step="'+(isR?'1':'0.5')+'" placeholder="'+(isR?'1':'2.5')+'" oninput="flS('+i+',\'qty\',this.value)"></div>'+
+        '<div><div class="fll">Roll Width</div><select onchange="flS('+i+',\'rollWidth\',this.value)">'+wo+'</select></div>'+
+        '<div class="ac-wrap"><div class="fll">Fabric Name</div><input type="text" id="fab_name_'+i+'" value="'+esc(l.fabric||'')+'" placeholder="e.g. Vibe Pure — type to search" oninput="flS('+i+',\'fabric\',this.value);showAC('+i+',this)" onblur="setTimeout(closeAllAC,150)" autocomplete="off"></div>'+
+        '<div><div class="fll">Colour</div><input type="text" id="fab_col_'+i+'" value="'+esc(l.colour||'')+'" placeholder="e.g. Arctic White" oninput="flS('+i+',\'colour\',this.value)" autocomplete="off"></div>'+
+      '</div>'+
+      '<div class="'+(isSF?'fl-r2b':'fl-r2a')+'">'+
+        (isSF?'<div><div class="fll">% Openness</div><select onchange="flS('+i+',\'openness\',this.value)">'+oo+'</select></div>':'')+
+        '<div><div class="fll">Fabric Type</div><select onchange="flS('+i+',\'fabricType\',this.value)">'+to+'</select></div>'+
+        '<div><div class="fll">Customer Name</div><input type="text" value="'+esc(l.customer||'')+'" placeholder="e.g. Smith" oninput="flS('+i+',\'customer\',this.value)"></div>'+
+        '<button class="flrm" onclick="rmFL('+i+')">✕</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function flS(i,f,v){ fabLines[i][f]=v; if(f==='rollCut'||f==='fabricType') rFL(); }
+function addFL(){
+  fabLines.push({rollCut:'roll',qty:1,fabric:'',colour:'',rollWidth:'3m',openness:'5%',fabricType:'',customer:''});
+  rFL();
+  setTimeout(function(){ var e=document.getElementById('fabLinesEl').lastElementChild; if(e)e.scrollIntoView({behavior:'smooth',block:'nearest'}); },60);
+}
+function rmFL(i){ if(fabLines.length===1){alert('At least one line required.');return;} fabLines.splice(i,1); rFL(); }
+
+function bFE(lines){
+  var b='Hi. Please supply the following roller blind fabric.\n\nDeliver to: '+ADDR_KM+'\n\n';
+  lines.forEach(function(l){
+    var q=parseFloat(l.qty)||1, isR=(l.rollCut||'roll')==='roll';
+    var qs=isR?(q+' x roll'+(q!==1?'s':'')):(q+'mt cut length');
+    var p=[l.fabric,l.colour].filter(Boolean).join(' ');
+    if(l.rollWidth) p+=' '+l.rollWidth;
+    if(l.fabricType==='Sunfilter'&&l.openness) p+=' Sunfilter '+l.openness+' open';
+    else if(l.fabricType) p+=' '+l.fabricType;
+    var ln=qs+' of '+p; if(l.customer) ln+=' ('+l.customer+')';
+    b+=ln+'\n';
+  });
+  return b+'\nThanks. Kind Regards\nStephen';
+}
+function prevFabEml(){ showEml(gFR(),bFE(fabLines),SUP_EM[document.getElementById('fabSup').value]||''); }
+function sendFabEml(){ lgm(SUP_EM[document.getElementById('fabSup').value]||'',gFR(),bFE(fabLines)); }
+
+function gFO(st){
+  var sv=document.getElementById('fabSup').value;
+  return {id:fabEId||String(Date.now()),type:'fabric',orderer:fabO,supKey:sv,supplier:sFull(sv),
+          ref:gFR(),orderDate:document.getElementById('fabDate').value,eta:document.getElementById('fabEta').value,
+          status:st,notes:document.getElementById('fabNotes').value.trim(),
+          lines:JSON.parse(JSON.stringify(fabLines)),cost:0,version:VERSION};
+}
+function saveFabDraft(){ fsSave(gFO('draft')); closeFab(); }
+function saveFab(){      fsSave(gFO(document.getElementById('fabStatus').value)); closeFab(); }
+
+// ════════════════════════════════════════════════
+// STOCK MODAL
+// ════════════════════════════════════════════════
+function openStk(id){
+  stkEId=id||null;
+  var o=stkEId?orders.find(function(x){return x.id===stkEId;}):null;
+  document.getElementById('stkTitle').textContent=stkEId?'📦 Edit Stock Order — Rollease Acmeda':'📦 New Stock Order — Rollease Acmeda';
+  stkO=o?(o.orderer||'SC'):'SC';
+  document.querySelectorAll('#stkOB .ob').forEach(function(b){b.classList.toggle('on',b.dataset.code===stkO);});
+  document.getElementById('stkDate').value=o?(o.orderDate||tod()):tod();
+  document.getElementById('stkEta').value=o?(o.eta||''):'';
+  document.getElementById('stkStatus').value=o?(o.status==='draft'?'pending':o.status||'pending'):'pending';
+  document.getElementById('stkDisc').value=o?(o.discount||''):'';
+  setDel(o?(o.delivery||'km'):'km');
+  stkQtys={}; if(o&&o.stockLines) o.stockLines.forEach(function(l){stkQtys[l.code]=l.qty||0;});
+  // Clear search
+  document.getElementById('stkSrch').value='';
+  document.getElementById('stkMatchCount').textContent='';
+  rST(); uSR();
+  document.getElementById('stkOv').classList.add('show');
+}
+function closeStk(){ document.getElementById('stkOv').classList.remove('show'); }
+function setDel(s){ del=s; document.getElementById('dKM').classList.toggle('on',s==='km'); document.getElementById('dMN').classList.toggle('on',s==='mn'); }
+
+function rST(){
+  var disc=parseFloat(document.getElementById('stkDisc').value||0)||0, lc='', tC=0, tQ=0, h='';
+  SI.forEach(function(item){
+    var qty=stkQtys[item.code]||0, dp=item.list*(1-disc/100), lt=qty*dp; tC+=lt; tQ+=qty;
+    if(item.cat!==lc){lc=item.cat; h+='<tr class="cath"><td colspan="7">'+item.cat+'</td></tr>';}
+    var hv=qty>0;
+    h+='<tr data-name="'+esc(item.name.toLowerCase())+'" data-code="'+esc(item.code.toLowerCase())+'"'+
+      (hv?' style="background:var(--lime-bg)"':'')+'>'+
+      '<td style="font-weight:'+(hv?600:400)+'">'+item.name+'</td>'+
+      '<td style="font-family:monospace;font-size:.7rem;color:var(--g4)">'+item.code+'</td>'+
+      '<td style="color:var(--g4);font-size:.72rem">'+item.unit+'</td>'+
+      '<td style="color:var(--g4);font-size:.72rem">'+item.bq+'</td>'+
+      '<td style="font-family:monospace">$'+item.list.toFixed(2)+(disc>0?'<br><span class="dtag">-'+disc+'% = $'+dp.toFixed(2)+'</span>':'')+
+      '</td><td><input type="number" class="'+(hv?'hq':'')+'" min="0" value="'+(qty||'')+'" placeholder="0" '+
+      'oninput="stkQtys[\''+item.code+'\']=parseFloat(this.value)||0;this.className=parseFloat(this.value)>0?\'hq\':\'\';rST()"></td>'+
+      '<td style="font-family:monospace;font-weight:'+(hv?700:400)+';color:'+(hv?'var(--char)':'var(--g2)')+'">'+
+      (hv?'$'+lt.toFixed(2):'—')+'</td></tr>';
+  });
+
+  // No-results placeholder
+  h+='<tr id="stkNoResults" style="display:none"><td colspan="7" class="no-results-row">No items match your search.</td></tr>';
+
+  document.getElementById('stkBodyEl').innerHTML=h;
+  document.getElementById('tQ').textContent=tQ>0?tQ+' pcs':'—';
+  document.getElementById('tC').textContent=tC>0?'$'+tC.toFixed(2):'—';
+
+  // Re-apply search filter if active
+  var term=document.getElementById('stkSrch').value;
+  if(term) filterStkItems();
+}
+
+function gSL(){
+  var disc=parseFloat(document.getElementById('stkDisc').value||0)||0;
+  return SI.filter(function(item){return(stkQtys[item.code]||0)>0;}).map(function(item){
+    var qty=stkQtys[item.code], dp=item.list*(1-disc/100);
+    return Object.assign({},item,{qty:qty,discPrice:dp,lineTotal:qty*dp});
+  });
+}
+
+function bSE(lines){
+  var addr=del==='km'?ADDR_KM:ADDR_MN, b='Hi. Please supply the following roller blind stock.\n\nDeliver to: '+addr+'\n', lc='';
+  lines.forEach(function(l){if(l.cat!==lc){b+='\n'+l.cat+':\n';lc=l.cat;} b+=l.qty+' x '+l.name+' ('+l.code+')\n';});
+  return b+'\nThanks. Kind Regards\nStephen';
+}
+
+function prevStkEml(){ var ls=gSL(); if(!ls.length){alert('Enter quantities first.');return;} showEml(gSR(),bSE(ls),''); }
+function sendStkEml(){ var ls=gSL(); if(!ls.length){alert('Enter quantities first.');return;} lgm('',gSR(),bSE(ls)); }
+
+function gSO(st){
+  var ls=gSL(), disc=parseFloat(document.getElementById('stkDisc').value||0)||0, tot=ls.reduce(function(s,l){return s+l.lineTotal;},0);
+  return {id:stkEId||String(Date.now()),type:'stock',orderer:stkO,supplier:'Rollease Acmeda',
+          ref:gSR(),orderDate:document.getElementById('stkDate').value,eta:document.getElementById('stkEta').value,
+          status:st,delivery:del,discount:disc,stockLines:ls,cost:tot.toFixed(2),notes:'',version:VERSION};
+}
+function saveStkDraft(){ fsSave(gSO('draft')); closeStk(); }
+function saveStk(){      fsSave(gSO(document.getElementById('stkStatus').value)); closeStk(); }
+
+// ════════════════════════════════════════════════
+// EMAIL
+// ════════════════════════════════════════════════
+function showEml(subj,body,to){ document.getElementById('emlSubj').value=subj; document.getElementById('emlBodyEl').textContent=body; document.getElementById('emlTo').value=to; document.getElementById('emlOv').classList.add('show'); }
+function closeEml(){ document.getElementById('emlOv').classList.remove('show'); }
+function cpyEml(){ navigator.clipboard.writeText(document.getElementById('emlBodyEl').textContent).then(function(){alert('Copied!');}); }
+function openGmail(){ lgm(document.getElementById('emlTo').value,document.getElementById('emlSubj').value,document.getElementById('emlBodyEl').textContent); }
+function lgm(to,subj,body){
+  window.open('https://mail.google.com/mail/?view=cm&fs=1&from='+encodeURIComponent(FROM)+(to?'&to='+encodeURIComponent(to):'')+('&cc='+encodeURIComponent(CC))+'&su='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body),'_blank');
+}
+
+// ════════════════════════════════════════════════
+// ROW ACTIONS
+// ════════════════════════════════════════════════
+function editO(id){ var o=orders.find(function(x){return x.id===id;}); if(!o)return; if(o.type==='fabric')openFab(id);else openStk(id); }
+function qEmail(id){
+  var o=orders.find(function(x){return x.id===id;}); if(!o)return;
+  if(o.type==='fabric') showEml(o.ref||'',bFE(o.lines||[]),SUP_EM[o.supKey]||'');
+  else showEml(o.ref||'',bSE(o.stockLines||[]),'');
+}
+function markR(id){
+  var o=orders.find(function(x){return x.id===id;}); if(!o)return;
+  if(o.status==='received'){alert('Already received.');return;}
+  var updated=Object.assign({},o,{status:'received'});
+  fsSave(updated);
+}
+function delO(id){ if(!confirm('Delete this order? This cannot be undone.'))return; fsDelete(id); }
+
+// ════════════════════════════════════════════════
+// FILTERS & EVENTS
+// ════════════════════════════════════════════════
+document.getElementById('tabsEl').addEventListener('click',function(e){
+  var b=e.target.closest('.tab'); if(!b)return;
+  document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); render();
+});
+document.getElementById('srchEl').addEventListener('input',render);
+document.getElementById('sfEl').addEventListener('change',render);
+['fabOv','stkOv','emlOv'].forEach(function(id){
+  document.getElementById(id).addEventListener('click',function(e){
+    if(e.target===document.getElementById(id)){
+      document.getElementById(id).classList.remove('show');
+      closeAllAC();
+    }
+  });
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.ac-wrap')) closeAllAC();
+});
+
+// ════════════════════════════════════════════════
+// STARTUP
+// ════════════════════════════════════════════════
+window.startApp = function() {
+  document.getElementById('hdrDate').textContent =
+    new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  loadFabricLibrary();
+  syncStatus('saving','Connecting…');
+  listenToOrders();
+};
+</script>
+</body>
+</html>
