@@ -308,7 +308,7 @@ tbody td{padding:.65rem .9rem;font-size:.79rem;vertical-align:middle;}
   <div class="modal modal-sm">
     <div class="mh"><span class="mt">✉ Email Preview</span><button class="mx" onclick="closeEml()">✕</button></div>
     <div class="mb">
-      <div class="gnote">From: <strong>Affordable Curtains &amp; Blinds</strong> &lt;acbleonie@gmail.com&gt; · CC: asjblinds@gmail.com</div>
+      <div class="gnote">From: <strong>Affordable Curtains &amp; Blinds</strong> &lt;<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="670604050b0208090e0227000a060e0b4904080a">[email&#160;protected]</a>&gt; · CC: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a7c6d4cdc5cbcec9c3d4e7c0cac6cecb89c4c8ca">[email&#160;protected]</a></div>
       <div class="fg"><label>To</label><input type="text" id="emlTo"></div>
       <div class="fg"><label>Subject</label><input type="text" id="emlSubj"></div>
       <div class="fg"><label>Body</label><div class="eprev" id="emlBody"></div></div>
@@ -321,7 +321,7 @@ tbody td{padding:.65rem .9rem;font-size:.79rem;vertical-align:middle;}
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ─────────────────────────────────────────────
 // VERSION & CONSTANTS
 // ─────────────────────────────────────────────
@@ -943,12 +943,12 @@ setTimeout(tryInitFirestore, 800);
 <script type="module">
   // Check if real config values exist before trying to load Firebase
   const CFG = {
-    apiKey:           "AIzaSyCi7k6M_7Ei32P6NAlkbHOREYrGbt_-ZrU",
+    apiKey:            "AIzaSyCi7k6M_7Ei32P6NAlkbHOREYrGbt_-ZrU",
     authDomain:        "affordable-pulse.firebaseapp.com",
     projectId:         "affordable-pulse",
-    storageBucket:    "affordable-pulse.firebasestorage.app",
+    storageBucket:     "affordable-pulse.firebasestorage.app",
     messagingSenderId: "1022272893054",
-    appId:            "1:1022272893054:web:110e1f9836d2749c0b682f"
+    appId:             "1:1022272893054:web:110e1f9836d2749c0b682f"
   };
 
   // Only initialise Firebase if config has been filled in
@@ -957,12 +957,4 @@ setTimeout(tryInitFirestore, 800);
     console.log('ASJ Orders: Running in local mode. Add Firebase config to enable live sync.');
   } else {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy }
-      = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    window._db    = getFirestore(initializeApp(CFG));
-    window._fsLib = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
-    console.log('ASJ Orders: Firebase connected.');
-  }
-</script>
-</body>
-</html>
+    const { getFirestore, collection, doc, setDoc, de
